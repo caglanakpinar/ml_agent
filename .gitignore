@@ -32,3 +32,18 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+*.egg-info/
+dist/
+
+# ml_agent runs and local artefacts
+*/*/runs/
+console/dbs/
+*.joblib
