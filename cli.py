@@ -28,12 +28,18 @@ def cli() -> None:
 
 @cli.command("generate")
 @click.option("--script", "write_script", is_flag=True, help="Also write a starter pipeline.py for each chosen sub agent (the sub agents already do the work).")
-def generate(write_script: bool) -> None:
+@click.option("--message", default=None, help="Send this as the first thing the user says, instead of typing it.")
+@click.option("--yes", "assume_yes", is_flag=True, help="Run unattended: approve every stage (decider, each plan) and never wait for input. Exit 1 if the pipeline did not finish.")
+@click.option("--worker", "use_worker", is_flag=True, help="Have each sub agent's worker model carry its plan out, as before; by default the console runs the plan's tools itself and a model only writes up the results.")
+@click.option("--no-router", is_flag=True, help="Skip the rule-based router: ml_decider_agent alone chooses the sub agents.")
+def generate(write_script: bool, message: str | None, assume_yes: bool, no_router: bool, use_worker: bool) -> None:
     """Start an interactive session: chat until the requirements are met, then `ml_decider_agent` names the
     sub agents (problem types) the problem goes to; each one's decider proposes a plan and, once you approve
     it, its worker carries it out. Every sub agent is given the problem, the data and what earlier ones found.
     """
-    chat(write_script)
+    finished = chat(write_script, message=message, auto=assume_yes, router=not no_router, worker=use_worker)
+    if assume_yes and not finished:
+        raise SystemExit(1)
 
 
 @cli.command("topics")
@@ -74,15 +80,19 @@ def tools(topic: str, group: str | None) -> None:
 @click.option("--question", required=True, help="What you want done, in plain words.")
 @click.option("--problem", default="", help="One-sentence problem statement (defaults to the question).")
 @click.option("--yes", "assume_yes", is_flag=True, help="Accept the decider's plan without asking.")
-def solve(topic: str, data_path: str, question: str, problem: str, assume_yes: bool) -> None:
+@click.option("--worker", "use_worker", is_flag=True, help="Have the worker model carry the plan out, as before; by default the console runs the plan's tools itself.")
+def solve(topic: str, data_path: str, question: str, problem: str, assume_yes: bool, use_worker: bool) -> None:
     """Run one sub agent's decider and worker directly, with no chat and no `ml_decider_agent`.
 
     TOPIC is `<category>/<problem_type>` (or just the problem type when it is unambiguous), e.g. `supervised/classification`.
     The decider proposes a plan for you to approve (or `--yes`); the worker then carries it out with the topic's tools, and the
     result is saved under `<category>/<problem_type>/runs/`.
     """
+    from console import orchestrate
     from console.orchestrate import run_topic_workflow
     from console.topics import parse_topic
+
+    orchestrate.USE_WORKER = use_worker
 
     try:
         category, problem_type = parse_topic(topic)
